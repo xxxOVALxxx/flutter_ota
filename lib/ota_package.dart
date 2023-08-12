@@ -33,13 +33,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
+import 'package:ota_package/firmware_source.dart';
 
 // Abstract class defining the structure of an OTA package
 abstract class OtaPackage {
   // Method to update firmware
   Future<void> updateFirmware(
       BluetoothDevice device,
-      int firmwareType,
+      FirmwareSource source,
       // TODO: Encapsulate FlutterBluePlus entities
       BluetoothService service,
       BluetoothCharacteristic dataUUID,
@@ -92,7 +93,7 @@ class Esp32OtaPackage implements OtaPackage {
   @override
   Future<void> updateFirmware(
       BluetoothDevice device,
-      int firmwareType,
+      FirmwareSource source,
       BluetoothService service,
       BluetoothCharacteristic dataUUID,
       BluetoothCharacteristic controlUUID,
@@ -108,20 +109,8 @@ class Esp32OtaPackage implements OtaPackage {
     byteList[0] = mtuSize & 0xFF;
     byteList[1] = (mtuSize >> 8) & 0xFF;
 
-    //TODO: Refactor this part
-    List<Uint8List> binaryChunks;
-
-    // Choose firmware source based on firmwareType
-    if (firmwareType == 1 && binFilePath != null && binFilePath.isNotEmpty) {
-      binaryChunks =
-          await getFirmware(firmwareType, mtuSize, binFilePath: binFilePath);
-    } else if (firmwareType == 2) {
-      binaryChunks = await _getFirmwareFromPicker(mtuSize);
-    } else if (firmwareType == 3 && url != null && url.isNotEmpty) {
-      binaryChunks = await _getFirmwareFromUrl(url, mtuSize);
-    } else {
-      binaryChunks = [];
-    }
+    // Fetch chunks from firmware source
+    List<Uint8List> binaryChunks = await source.getFirmwareChunks(mtuSize);
 
     // Write x01 to the controlCharacteristic and check if it returns value of 0x02
     await bleRepo.writeDataCharacteristic(dataCharacteristic, byteList);
