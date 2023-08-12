@@ -26,6 +26,11 @@ TODO:
 Write tests
 */
 
+/*
+TODO: 
+Update README
+*/
+
 // Import necessary libraries
 import 'dart:async';
 import 'package:flutter/services.dart';
