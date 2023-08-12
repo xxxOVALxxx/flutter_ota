@@ -28,26 +28,21 @@ Write tests
 
 // Import necessary libraries
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:http/http.dart' as http;
 import 'package:ota_package/firmware_source.dart';
 
 // Abstract class defining the structure of an OTA package
 abstract class OtaPackage {
   // Method to update firmware
   Future<void> updateFirmware(
-      BluetoothDevice device,
-      FirmwareSource source,
-      // TODO: Encapsulate FlutterBluePlus entities
-      BluetoothService service,
-      BluetoothCharacteristic dataUUID,
-      BluetoothCharacteristic controlUUID,
-      // TODO: Get rid of optional arguments by decomposition
-      {String? binFilePath,
-      String? url});
+    BluetoothDevice device,
+    FirmwareSource source,
+    // TODO: Encapsulate FlutterBluePlus entities
+    BluetoothService service,
+    BluetoothCharacteristic dataUUID,
+    BluetoothCharacteristic controlUUID,
+  );
 
   // Property to track firmware update status
   //TODO: Replace with callback or state object
@@ -92,13 +87,12 @@ class Esp32OtaPackage implements OtaPackage {
 
   @override
   Future<void> updateFirmware(
-      BluetoothDevice device,
-      FirmwareSource source,
-      BluetoothService service,
-      BluetoothCharacteristic dataUUID,
-      BluetoothCharacteristic controlUUID,
-      {String? binFilePath,
-      String? url}) async {
+    BluetoothDevice device,
+    FirmwareSource source,
+    BluetoothService service,
+    BluetoothCharacteristic dataUUID,
+    BluetoothCharacteristic controlUUID,
+  ) async {
     final bleRepo = BleRepository();
 
     // Get MTU size from the device
@@ -156,111 +150,9 @@ class Esp32OtaPackage implements OtaPackage {
     }
   }
 
-  // Convert Uint8List to List<int>
-  List<int> uint8ListToIntList(Uint8List uint8List) {
-    return uint8List.toList();
-  }
-
-  // Read binary file and split it into chunks
-  Future<List<Uint8List>> _readBinaryFile(String filePath, int mtuSize) async {
-    final ByteData data = await rootBundle.load(filePath);
-    final List<int> bytes = data.buffer.asUint8List();
-    final int chunkSize = mtuSize;
-    List<Uint8List> chunks = [];
-    for (int i = 0; i < bytes.length; i += chunkSize) {
-      int end = i + chunkSize;
-      if (end > bytes.length) {
-        end = bytes.length;
-      }
-      Uint8List chunk = Uint8List.fromList(bytes.sublist(i, end));
-      chunks.add(chunk);
-    }
-    return chunks;
-  }
-
+  // TODO: Remove in future
   // Get firmware based on firmwareType
-  Future<List<Uint8List>> getFirmware(int firmwareType, int mtuSize,
-      {String? binFilePath}) {
-    if (firmwareType == 2) {
-      return _getFirmwareFromPicker(mtuSize);
-    } else if (firmwareType == 1 &&
-        binFilePath != null &&
-        binFilePath.isNotEmpty) {
-      return _readBinaryFile(binFilePath, mtuSize);
-    } else {
-      return Future.value([]);
-    }
-  }
-
-  // Get firmware chunks from file picker
-  Future<List<Uint8List>> _getFirmwareFromPicker(int mtuSize) async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['bin'],
-    );
-
-    if (result == null || result.files.isEmpty) {
-      return []; // Return an empty list when no file is picked
-    }
-
-    final file = result.files.first;
-
-    try {
-      final firmwareData = await _openFileAndGetFirmwareData(file, mtuSize);
-
-      if (firmwareData.isEmpty) {
-        throw 'Empty firmware data. Please select a valid firmware file.';
-      }
-
-      return firmwareData;
-    } catch (e) {
-      throw 'Error getting firmware data: $e';
-    }
-  }
-
-  // Open file, read bytes, and split into chunks
-  Future<List<Uint8List>> _openFileAndGetFirmwareData(
-      PlatformFile file, int mtuSize) async {
-    final bytes = await File(file.path!).readAsBytes();
-    List<Uint8List> firmwareData = [];
-
-    for (int i = 0; i < bytes.length; i += mtuSize) {
-      int end = i + mtuSize;
-      if (end > bytes.length) {
-        end = bytes.length;
-      }
-      firmwareData.add(Uint8List.fromList(bytes.sublist(i, end)));
-    }
-    return firmwareData;
-  }
-
-  // Fetch firmware chunks from a URL
-  Future<List<Uint8List>> _getFirmwareFromUrl(String url, int mtuSize) async {
-    try {
-      final response =
-          await http.get(Uri.parse(url)).timeout(Duration(seconds: 10));
-
-      // Check if the HTTP request was successful (status code 200)
-      if (response.statusCode == 200) {
-        final List<int> bytes = response.bodyBytes;
-        final int chunkSize = mtuSize;
-        List<Uint8List> chunks = [];
-        for (int i = 0; i < bytes.length; i += chunkSize) {
-          int end = i + chunkSize;
-          if (end > bytes.length) {
-            end = bytes.length;
-          }
-          Uint8List chunk = Uint8List.fromList(bytes.sublist(i, end));
-          chunks.add(chunk);
-        }
-        return chunks;
-      } else {
-        // Handle HTTP error (e.g., status code is not 200)
-        throw 'HTTP Error: ${response.statusCode} - ${response.reasonPhrase}';
-      }
-    } catch (e) {
-      // Handle other errors (e.g., timeout, network connectivity issues)
-      throw 'Error fetching firmware from URL: $e';
-    }
+  Future<List<Uint8List>> getFirmware(FirmwareSource source, int mtuSize) {
+    return source.getFirmwareChunks(mtuSize);
   }
 }
