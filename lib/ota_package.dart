@@ -1,5 +1,31 @@
 // ignore_for_file: annotate_overrides, avoid_print, prefer_const_constructors
 
+/*
+TODO: 
+I suggest getting rid of methods that use external dependencies like http and file_picker.
+The user can implement them himself, not limited to these libraries.
+*/
+
+/*
+TODO: 
+Add custom exceptions
+*/
+
+/*
+TODO: 
+Replace comments with documentation comments and remove and remove unnecessary ones
+*/
+
+/*
+TODO: 
+Replace "magic numbers" with constants
+*/
+
+/*
+TODO: 
+Write tests
+*/
+
 // Import necessary libraries
 import 'dart:async';
 import 'dart:io';
@@ -12,30 +38,36 @@ import 'package:http/http.dart' as http;
 abstract class OtaPackage {
   // Method to update firmware
   Future<void> updateFirmware(
-    BluetoothDevice device,
-    int firmwareType,
-    BluetoothService service,
-    BluetoothCharacteristic dataUUID,
-    BluetoothCharacteristic controlUUID,
-    {String? binFilePath, String? url}
-  );
-  
+      BluetoothDevice device,
+      int firmwareType,
+      // TODO: Encapsulate FlutterBluePlus entities
+      BluetoothService service,
+      BluetoothCharacteristic dataUUID,
+      BluetoothCharacteristic controlUUID,
+      // TODO: Get rid of optional arguments by decomposition
+      {String? binFilePath,
+      String? url});
+
   // Property to track firmware update status
+  //TODO: Replace with callback or state object
   bool firmwareupdate = false;
 
   // Stream to provide progress percentage
+  //TODO: Replace with callback or state object
   Stream<int> get percentageStream;
 }
 
 // Class responsible for handling BLE repository operations
 class BleRepository {
   // Write data to a Bluetooth characteristic
-  Future<void> writeDataCharacteristic(BluetoothCharacteristic characteristic, Uint8List data) async {
+  Future<void> writeDataCharacteristic(
+      BluetoothCharacteristic characteristic, Uint8List data) async {
     await characteristic.write(data);
   }
 
   // Read data from a Bluetooth characteristic
-  Future<List<int>> readCharacteristic(BluetoothCharacteristic characteristic) async {
+  Future<List<int>> readCharacteristic(
+      BluetoothCharacteristic characteristic) async {
     return await characteristic.read();
   }
 
@@ -50,7 +82,8 @@ class Esp32OtaPackage implements OtaPackage {
   final BluetoothCharacteristic dataCharacteristic;
   final BluetoothCharacteristic controlCharacteristic;
   bool firmwareupdate = false;
-  final StreamController<int> _percentageController = StreamController<int>.broadcast();
+  final StreamController<int> _percentageController =
+      StreamController<int>.broadcast();
   @override
   Stream<int> get percentageStream => _percentageController.stream;
 
@@ -58,28 +91,30 @@ class Esp32OtaPackage implements OtaPackage {
 
   @override
   Future<void> updateFirmware(
-    BluetoothDevice device,
-    int firmwareType,
-    BluetoothService service,
-    BluetoothCharacteristic dataUUID,
-    BluetoothCharacteristic controlUUID,
-    {String? binFilePath, String? url}
-  ) async {
+      BluetoothDevice device,
+      int firmwareType,
+      BluetoothService service,
+      BluetoothCharacteristic dataUUID,
+      BluetoothCharacteristic controlUUID,
+      {String? binFilePath,
+      String? url}) async {
     final bleRepo = BleRepository();
 
     // Get MTU size from the device
     int mtuSize = await device.mtu.first;
-    
+
     // Prepare a byte list to write MTU size to controlCharacteristic
     Uint8List byteList = Uint8List(2);
     byteList[0] = mtuSize & 0xFF;
     byteList[1] = (mtuSize >> 8) & 0xFF;
 
+    //TODO: Refactor this part
     List<Uint8List> binaryChunks;
 
     // Choose firmware source based on firmwareType
     if (firmwareType == 1 && binFilePath != null && binFilePath.isNotEmpty) {
-      binaryChunks = await getFirmware(firmwareType, mtuSize, binFilePath: binFilePath);
+      binaryChunks =
+          await getFirmware(firmwareType, mtuSize, binFilePath: binFilePath);
     } else if (firmwareType == 2) {
       binaryChunks = await _getFirmwareFromPicker(mtuSize);
     } else if (firmwareType == 3 && url != null && url.isNotEmpty) {
@@ -90,12 +125,15 @@ class Esp32OtaPackage implements OtaPackage {
 
     // Write x01 to the controlCharacteristic and check if it returns value of 0x02
     await bleRepo.writeDataCharacteristic(dataCharacteristic, byteList);
-    await bleRepo.writeDataCharacteristic(controlCharacteristic, Uint8List.fromList([1]));
+    await bleRepo.writeDataCharacteristic(
+        controlCharacteristic, Uint8List.fromList([1]));
 
     // Read value from controlCharacteristic
-    List<int> value = await bleRepo.readCharacteristic(controlCharacteristic).timeout(Duration(seconds: 10));
+    List<int> value = await bleRepo
+        .readCharacteristic(controlCharacteristic)
+        .timeout(Duration(seconds: 10));
     print('value returned is this ------- ${value[0]}');
-    
+
     int packageNumber = 0;
     for (Uint8List chunk in binaryChunks) {
       // Write firmware chunks to dataCharacteristic
@@ -104,18 +142,22 @@ class Esp32OtaPackage implements OtaPackage {
 
       double progress = (packageNumber / binaryChunks.length) * 100;
       int roundedProgress = progress.round(); // Rounded off progress value
-      print('Writing package number $packageNumber of ${binaryChunks.length} to ESP32');
+      print(
+          'Writing package number $packageNumber of ${binaryChunks.length} to ESP32');
       print('Progress: $roundedProgress%');
       _percentageController.add(roundedProgress);
     }
 
     // Write x04 to the controlCharacteristic to finish the update process
-    await bleRepo.writeDataCharacteristic(controlCharacteristic, Uint8List.fromList([4]));
+    await bleRepo.writeDataCharacteristic(
+        controlCharacteristic, Uint8List.fromList([4]));
 
     // Check if controlCharacteristic reads 0x05, indicating OTA update finished
-    value = await bleRepo.readCharacteristic(controlCharacteristic).timeout(Duration(seconds: 600));
+    value = await bleRepo
+        .readCharacteristic(controlCharacteristic)
+        .timeout(Duration(seconds: 600));
     print('value returned is this ------- ${value[0]}');
-    
+
     if (value[0] == 5) {
       print('OTA update finished');
       firmwareupdate = true; // Firmware update was successful
@@ -148,10 +190,13 @@ class Esp32OtaPackage implements OtaPackage {
   }
 
   // Get firmware based on firmwareType
-  Future<List<Uint8List>> getFirmware(int firmwareType, int mtuSize, {String? binFilePath}) {
+  Future<List<Uint8List>> getFirmware(int firmwareType, int mtuSize,
+      {String? binFilePath}) {
     if (firmwareType == 2) {
       return _getFirmwareFromPicker(mtuSize);
-    } else if (firmwareType == 1 && binFilePath != null && binFilePath.isNotEmpty) {
+    } else if (firmwareType == 1 &&
+        binFilePath != null &&
+        binFilePath.isNotEmpty) {
       return _readBinaryFile(binFilePath, mtuSize);
     } else {
       return Future.value([]);
@@ -185,7 +230,8 @@ class Esp32OtaPackage implements OtaPackage {
   }
 
   // Open file, read bytes, and split into chunks
-  Future<List<Uint8List>> _openFileAndGetFirmwareData(PlatformFile file, int mtuSize) async {
+  Future<List<Uint8List>> _openFileAndGetFirmwareData(
+      PlatformFile file, int mtuSize) async {
     final bytes = await File(file.path!).readAsBytes();
     List<Uint8List> firmwareData = [];
 
@@ -202,7 +248,8 @@ class Esp32OtaPackage implements OtaPackage {
   // Fetch firmware chunks from a URL
   Future<List<Uint8List>> _getFirmwareFromUrl(String url, int mtuSize) async {
     try {
-      final response = await http.get(Uri.parse(url)).timeout(Duration(seconds: 10));
+      final response =
+          await http.get(Uri.parse(url)).timeout(Duration(seconds: 10));
 
       // Check if the HTTP request was successful (status code 200)
       if (response.statusCode == 200) {
