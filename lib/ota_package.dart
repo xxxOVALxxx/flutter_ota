@@ -31,6 +31,11 @@ TODO:
 Update README
 */
 
+library ota_package;
+
+export 'other.dart';
+export 'firmware_source.dart';
+
 // Import necessary libraries
 import 'dart:async';
 import 'package:flutter/services.dart';
@@ -44,7 +49,6 @@ abstract class OtaPackage {
     BluetoothDevice device,
     FirmwareSource source,
     // TODO: Encapsulate FlutterBluePlus entities
-    BluetoothService service,
     BluetoothCharacteristic dataUUID,
     BluetoothCharacteristic controlUUID,
   );
@@ -80,23 +84,20 @@ class BleRepository {
 
 // Implementation of OTA package for ESP32
 class Esp32OtaPackage implements OtaPackage {
-  final BluetoothCharacteristic dataCharacteristic;
-  final BluetoothCharacteristic controlCharacteristic;
   bool firmwareupdate = false;
   final StreamController<int> _percentageController =
       StreamController<int>.broadcast();
   @override
   Stream<int> get percentageStream => _percentageController.stream;
 
-  Esp32OtaPackage(this.dataCharacteristic, this.controlCharacteristic);
+  Esp32OtaPackage();
 
   @override
   Future<void> updateFirmware(
     BluetoothDevice device,
     FirmwareSource source,
-    BluetoothService service,
-    BluetoothCharacteristic dataUUID,
-    BluetoothCharacteristic controlUUID,
+    BluetoothCharacteristic dataCharacteristic,
+    BluetoothCharacteristic controlCharacteristic,
   ) async {
     final bleRepo = BleRepository();
 
